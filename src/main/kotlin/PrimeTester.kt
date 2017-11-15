@@ -16,7 +16,6 @@ class PrimeTester : Thread() {
     }
 
     companion object {
-
         @JvmStatic
         fun main(a: Array<String>) {
             var frequency: Long = 1
