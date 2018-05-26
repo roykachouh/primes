@@ -1,4 +1,4 @@
-package benchmark
+package metadata
 
 import spock.lang.IgnoreIf
 import spock.lang.Specification
