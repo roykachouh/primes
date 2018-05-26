@@ -42,8 +42,8 @@ class CPUBenchmarker : KoinComponent {
                 .include(".*" + ConsumeCPU::class.java!!.getSimpleName() + ".*")
                 .forks(1)
                 .warmupForks(1)
-                .warmupIterations(5)
-                .measurementIterations(5)
+                .warmupIterations(2)
+                .measurementIterations(3)
                 .build()
 
         val benchmarkResult = Runner(opt).run()
@@ -66,7 +66,8 @@ class CPUBenchmarker : KoinComponent {
                     val stats = it.primaryResult.getStatistics() as ListStatistics
 
                     val putMetricDataRequest = PutMetricDataRequest()
-                    putMetricDataRequest.namespace = System.getenv("cpu-spec")
+                    putMetricDataRequest.namespace =
+                            cpuMetadata.modelName!!.replace(" ","_").substring(0, 200)
                     val metric = MetricDatum()
                     metric.metricName = it.primaryResult.getLabel()
                     metric.unit = StandardUnit.Count.name
