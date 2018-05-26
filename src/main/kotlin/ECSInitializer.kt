@@ -12,9 +12,9 @@ fun main(args: Array<String>) {
 
 class ECSInitializer : KoinComponent {
 
-    val ecs by inject<AmazonECS>()
+    private val ecs by inject<AmazonECS>()
 
-    val cpuConfigs = mapOf("0.25 vCPU" to "0.5GB",
+    private val cpuConfigs = mapOf("0.25 vCPU" to "0.5GB",
             "0.5 vCPU" to "1GB",
             "1 vCPU" to "2GB",
             "2 vCPU" to "4GB",
@@ -25,7 +25,7 @@ class ECSInitializer : KoinComponent {
         setupEcs()
     }
 
-    fun setupEcs() {
+    private fun setupEcs() {
 
         cpuConfigs.forEach { key, value ->
             val image =
@@ -56,24 +56,18 @@ class ECSInitializer : KoinComponent {
                             .withNetworkMode(NetworkMode.Awsvpc)
                             .withContainerDefinitions(image)
 
-            ecs.registerTaskDefinition(registerTaskDefinitionRequest)
+            val registerTaskDefinition = ecs.registerTaskDefinition(registerTaskDefinitionRequest)
 
-            val networkConfig = NetworkConfiguration()
-                    .withAwsvpcConfiguration(AwsVpcConfiguration()
-                            .withSubnets("subnet-abcc5f84")
-                            .withAssignPublicIp(AssignPublicIp.ENABLED))
+            val taskArn = registerTaskDefinition.taskDefinition.taskDefinitionArn
 
-            val service = CreateServiceRequest()
-                    .withServiceName("$family-service")
-                    .withDesiredCount(1)
-                    .withLaunchType(LaunchType.FARGATE)
-                    .withNetworkConfiguration(networkConfig)
-                    .withTaskDefinition(family)
+            val updateServiceRequest = UpdateServiceRequest()
+                    .withService("$family-service")
+                    .withForceNewDeployment(true)
+                    .withTaskDefinition(taskArn)
 
-          //  ecs.createService(service)
+
+          ecs.updateService(updateServiceRequest)
 
         }
-
-
     }
 }

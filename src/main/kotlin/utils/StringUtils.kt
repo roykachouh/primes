@@ -1,7 +1,7 @@
 package utils
 
 object StringUtils {
-    val notApplicable = "N/A"
+    const val notApplicable = "N/A"
 
     inline fun defaultWhenNull(input: String?, default: String): String {
         return input ?: default

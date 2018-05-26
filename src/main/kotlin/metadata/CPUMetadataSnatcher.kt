@@ -1,7 +1,10 @@
 package metadata
 
 import java.io.IOException
+import java.util.*
 import java.util.concurrent.TimeUnit
+
+
 
 class CPUMetadataSnatcher {
     data class CpuMetadata(val vendor: String?,
@@ -17,22 +20,23 @@ class CPUMetadataSnatcher {
         )
     }
 
-    fun String.runCommand(): String? {
+    private fun String.runCommand(): String? {
         try {
-            val parts = this.split("\\s".toRegex())
-            val proc = ProcessBuilder(*parts.toTypedArray())
-                    .redirectOutput(ProcessBuilder.Redirect.PIPE)
+            val commands = ArrayList<String>()
+            commands.add("/bin/sh")
+            commands.add("-c")
+            commands.add(this)
+
+            val commandExecutor = ProcessBuilder()
+            commandExecutor.command(commands)
+
+            val result = commandExecutor.redirectOutput(ProcessBuilder.Redirect.PIPE)
                     .redirectError(ProcessBuilder.Redirect.PIPE)
                     .start()
 
-            proc.waitFor(60, TimeUnit.SECONDS)
+            result.waitFor(60, TimeUnit.SECONDS)
 
-            val stdout = proc.inputStream.bufferedReader().readText()
-
-            if (stdout.isBlank()) {
-                return null
-            }
-            return stdout
+            return result.inputStream.bufferedReader().readText().replace("\n","")
         } catch (e: IOException) {
             e.printStackTrace()
             return null

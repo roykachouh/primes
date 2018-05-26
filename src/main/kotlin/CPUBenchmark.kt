@@ -24,26 +24,30 @@ class CPUBenchmarker : KoinComponent {
     companion object {
 
         @JvmStatic
-        fun main(args: Array<String>) {
+        fun main(args: Array<String>) { // you need a shell to execute a command pipeline
+
             startKoin(listOf(mainModule))
 
             CPUBenchmarker()
         }
     }
 
-    val cpuMetadataSnatcher by inject<CPUMetadataSnatcher>()
-    val dynamo by inject<AmazonDynamoDB>()
-    val cloudWatch by inject<AmazonCloudWatch>()
+    private val cpuMetadataSnatcher by inject<CPUMetadataSnatcher>()
+    private val dynamo by inject<AmazonDynamoDB>()
+    private val cloudWatch by inject<AmazonCloudWatch>()
+
+    private val alphanumbericRegex = Regex("[^A-Za-z0-9 ]")
 
     init {
         val cpuMetadata = cpuMetadataSnatcher.snatch()
 
         val opt = OptionsBuilder()
-                .include(".*" + ConsumeCPU::class.java!!.getSimpleName() + ".*")
+                .include(".*" + ConsumeCPU::class.java.simpleName + ".*")
                 .forks(1)
+                .threads(Runtime.getRuntime().availableProcessors())
                 .warmupForks(1)
-                .warmupIterations(2)
-                .measurementIterations(3)
+                .warmupIterations(3)
+                .measurementIterations(5)
                 .build()
 
         val benchmarkResult = Runner(opt).run()
@@ -52,7 +56,7 @@ class CPUBenchmarker : KoinComponent {
         persist(benchmarkResult, cpuMetadata)
     }
 
-    fun persist(benchmarkResult: MutableCollection<RunResult>, cpuMetadata: CpuMetadata) {
+    private fun persist(benchmarkResult: MutableCollection<RunResult>, cpuMetadata: CpuMetadata) {
         benchmarkResult.forEach {
             it.benchmarkResults.forEach {
                 it.iterationResults.forEach {
@@ -65,10 +69,19 @@ class CPUBenchmarker : KoinComponent {
 
                     val stats = it.primaryResult.getStatistics() as ListStatistics
 
+                    val modelName = cpuMetadataSnatcher
+                            .snatch().modelName!!
+                            .replace(" ", "_")
+                            .replace("modelname", "")
+
+
+                    val cleanNamespace = alphanumbericRegex.replace(modelName, "")
                     val putMetricDataRequest = PutMetricDataRequest()
-                    putMetricDataRequest.namespace =
-                            cpuMetadata.modelName!!.replace(" ","_").substring(0, 200)
                     val metric = MetricDatum()
+
+                    println("Namespace: $cleanNamespace")
+
+                    putMetricDataRequest.namespace = cleanNamespace
                     metric.metricName = it.primaryResult.getLabel()
                     metric.unit = StandardUnit.Count.name
                     metric.timestamp = Date()
