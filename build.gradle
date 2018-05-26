@@ -48,6 +48,8 @@ dependencies {
     compile "org.jetbrains.kotlin:kotlin-stdlib-jre8:$kotlin_version"
     compile "com.amazonaws:aws-java-sdk-dynamodb:1.11.335"
     compile group: 'com.amazonaws', name: 'aws-java-sdk-cloudwatch', version: '1.11.336'
+    compile group: 'com.amazonaws', name: 'aws-java-sdk-ecs', version: '1.11.336'
+
     compile "org.koin:koin-core:0.9.2"
 
     compile group: 'org.openjdk.jmh', name: 'jmh-core', version: '1.21'
@@ -67,7 +69,7 @@ sourceSets {
 
 jar {
     manifest {
-        attributes 'Main-Class': 'PrimeTester'
+        attributes 'Main-Class': 'CPUBenchmarker'
     }
 
     from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }

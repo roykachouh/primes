@@ -19,13 +19,17 @@ import org.openjdk.jmh.util.ListStatistics
 import java.util.*
 
 
-fun main(args: Array<String>) {
-    startKoin(listOf(PrimeModule))
-
-    CPUBenchmarker()
-}
-
 class CPUBenchmarker : KoinComponent {
+
+    companion object {
+
+        @JvmStatic
+        fun main(args: Array<String>) {
+            startKoin(listOf(mainModule))
+
+            CPUBenchmarker()
+        }
+    }
 
     val cpuMetadataSnatcher by inject<CPUMetadataSnatcher>()
     val dynamo by inject<AmazonDynamoDB>()
@@ -62,7 +66,7 @@ class CPUBenchmarker : KoinComponent {
                     val stats = it.primaryResult.getStatistics() as ListStatistics
 
                     val putMetricDataRequest = PutMetricDataRequest()
-                    putMetricDataRequest.namespace = "sample.large"
+                    putMetricDataRequest.namespace = System.getenv("cpu-spec")
                     val metric = MetricDatum()
                     metric.metricName = it.primaryResult.getLabel()
                     metric.unit = StandardUnit.Count.name
