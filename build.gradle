@@ -41,7 +41,7 @@ jmh {
     iterations = 1
 }
 
-jmhJar.baseName = 'custom'
+jmhJar.baseName = 'benchmark'
 
 dependencies {
 
