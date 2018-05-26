@@ -1,2 +1,2 @@
-# primes
-A simple kotlin process that generates and detects primes
+# Benchmarker
+A simple jmh benchmark kotlin app that will run on ecs and public metrics to cloudwatch.
