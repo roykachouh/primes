@@ -1,3 +1,4 @@
+
 import benchmarks.ConsumeCPU
 import com.amazonaws.services.cloudwatch.AmazonCloudWatch
 import com.amazonaws.services.cloudwatch.model.MetricDatum
@@ -15,8 +16,10 @@ import org.koin.standalone.inject
 import org.openjdk.jmh.results.RunResult
 import org.openjdk.jmh.runner.Runner
 import org.openjdk.jmh.runner.options.OptionsBuilder
+import org.openjdk.jmh.runner.options.TimeValue
 import org.openjdk.jmh.util.ListStatistics
 import java.util.*
+import java.util.concurrent.TimeUnit
 
 
 class CPUBenchmarker : KoinComponent {
@@ -24,7 +27,7 @@ class CPUBenchmarker : KoinComponent {
     companion object {
 
         @JvmStatic
-        fun main(args: Array<String>) { // you need a shell to execute a command pipeline
+        fun main(args: Array<String>) {
 
             startKoin(listOf(mainModule))
 
@@ -46,8 +49,10 @@ class CPUBenchmarker : KoinComponent {
                 .forks(1)
                 .threads(Runtime.getRuntime().availableProcessors())
                 .warmupForks(1)
+                .warmupTime(TimeValue(5, TimeUnit.SECONDS))
                 .warmupIterations(3)
                 .measurementIterations(5)
+                .measurementTime(TimeValue(5, TimeUnit.SECONDS))
                 .build()
 
         val benchmarkResult = Runner(opt).run()
@@ -69,22 +74,27 @@ class CPUBenchmarker : KoinComponent {
 
                     val stats = it.primaryResult.getStatistics() as ListStatistics
 
-                    val modelName = cpuMetadataSnatcher
-                            .snatch().modelName!!
+                    val modelName = cpuMetadata.modelName!!
                             .replace(" ", "_")
                             .replace("modelname", "")
 
+                    val cores = cpuMetadata.cores
+
 
                     val cleanNamespace = alphanumbericRegex.replace(modelName, "")
+                    val cleanCores = alphanumbericRegex.replace(cores!!, "")
                     val putMetricDataRequest = PutMetricDataRequest()
                     val metric = MetricDatum()
 
                     println("Namespace: $cleanNamespace")
+                    println("CPU-Metadata: $cpuMetadata")
 
-                    putMetricDataRequest.namespace = cleanNamespace
+                    putMetricDataRequest.namespace = cleanNamespace + "_cores: " + cleanCores
+
                     metric.metricName = it.primaryResult.getLabel()
-                    metric.unit = StandardUnit.Count.name
+                    metric.unit = StandardUnit.None.name
                     metric.timestamp = Date()
+                    metric.withDimensions()
                     metric.statisticValues = StatisticSet()
                             .withMinimum(stats.min)
                             .withMaximum(stats.max)
