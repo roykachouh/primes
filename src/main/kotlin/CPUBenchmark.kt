@@ -1,10 +1,7 @@
 
 import benchmarks.ConsumeCPU
 import com.amazonaws.services.cloudwatch.AmazonCloudWatch
-import com.amazonaws.services.cloudwatch.model.MetricDatum
-import com.amazonaws.services.cloudwatch.model.PutMetricDataRequest
-import com.amazonaws.services.cloudwatch.model.StandardUnit
-import com.amazonaws.services.cloudwatch.model.StatisticSet
+import com.amazonaws.services.cloudwatch.model.*
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB
 import com.amazonaws.services.dynamodbv2.model.AttributeValue
 import com.amazonaws.services.dynamodbv2.model.PutItemRequest
@@ -18,6 +15,7 @@ import org.openjdk.jmh.runner.Runner
 import org.openjdk.jmh.runner.options.OptionsBuilder
 import org.openjdk.jmh.runner.options.TimeValue
 import org.openjdk.jmh.util.ListStatistics
+import utils.MetricsUtil
 import java.util.*
 import java.util.concurrent.TimeUnit
 
@@ -38,8 +36,6 @@ class CPUBenchmarker : KoinComponent {
     private val cpuMetadataSnatcher by inject<CPUMetadataSnatcher>()
     private val dynamo by inject<AmazonDynamoDB>()
     private val cloudWatch by inject<AmazonCloudWatch>()
-
-    private val alphanumbericRegex = Regex("[^A-Za-z0-9 ]")
 
     init {
         val cpuMetadata = cpuMetadataSnatcher.snatch()
@@ -81,20 +77,24 @@ class CPUBenchmarker : KoinComponent {
                     val cores = cpuMetadata.cores
 
 
-                    val cleanNamespace = alphanumbericRegex.replace(modelName, "")
-                    val cleanCores = alphanumbericRegex.replace(cores!!, "")
+                    val cleanNamespace = MetricsUtil.sanitizeNamespace(modelName)
                     val putMetricDataRequest = PutMetricDataRequest()
                     val metric = MetricDatum()
 
                     println("Namespace: $cleanNamespace")
                     println("CPU-Metadata: $cpuMetadata")
 
-                    putMetricDataRequest.namespace = cleanNamespace + "_cores: " + cleanCores
+                    putMetricDataRequest.namespace = cleanNamespace + "_cores: " + cores
+
+                    val regionDimension =
+                            Dimension()
+                                    .withName("region")
+                                    .withValue("us-east-1") // TODO externalize
 
                     metric.metricName = it.primaryResult.getLabel()
                     metric.unit = StandardUnit.None.name
                     metric.timestamp = Date()
-                    metric.withDimensions()
+                    metric.withDimensions(regionDimension)
                     metric.statisticValues = StatisticSet()
                             .withMinimum(stats.min)
                             .withMaximum(stats.max)
