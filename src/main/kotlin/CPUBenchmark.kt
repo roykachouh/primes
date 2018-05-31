@@ -1,4 +1,3 @@
-
 import benchmarks.ConsumeCPU
 import com.amazonaws.services.cloudwatch.AmazonCloudWatch
 import com.amazonaws.services.cloudwatch.model.*
@@ -70,14 +69,8 @@ class CPUBenchmarker : KoinComponent {
 
                     val stats = it.primaryResult.getStatistics() as ListStatistics
 
-                    val modelName = cpuMetadata.modelName!!
-                            .replace(" ", "_")
-                            .replace("modelname", "")
-
                     val cores = cpuMetadata.cores
-
-
-                    val cleanNamespace = MetricsUtil.sanitizeNamespace(modelName)
+                    val cleanNamespace = MetricsUtil.sanitizeNamespace(cpuMetadata.modelName)
                     val putMetricDataRequest = PutMetricDataRequest()
                     val metric = MetricDatum()
 
@@ -86,20 +79,21 @@ class CPUBenchmarker : KoinComponent {
 
                     putMetricDataRequest.namespace = cleanNamespace + "_cores: " + cores
 
-                    val regionDimension =
-                            Dimension()
-                                    .withName("region")
-                                    .withValue("us-east-1") // TODO externalize
+                    val regionDimension = Dimension()
+                    regionDimension.name = "region"
+                    regionDimension.value = "us-east-1" // TODO externalize
 
                     metric.metricName = it.primaryResult.getLabel()
                     metric.unit = StandardUnit.None.name
                     metric.timestamp = Date()
                     metric.withDimensions(regionDimension)
-                    metric.statisticValues = StatisticSet()
-                            .withMinimum(stats.min)
-                            .withMaximum(stats.max)
-                            .withSum(stats.sum)
-                            .withSampleCount(stats.n.toDouble())
+
+                    val statSet = StatisticSet()
+                    statSet.minimum = stats.min
+                    statSet.maximum = stats.max
+                    statSet.sum = stats.sum
+                    statSet.sampleCount = stats.n.toDouble()
+                    metric.statisticValues = statSet
 
                     putMetricDataRequest.withMetricData(metric)
 
@@ -116,7 +110,6 @@ class CPUBenchmarker : KoinComponent {
                     dynamo.putItem(putItemRequest)
 
                     cloudWatch.putMetricData(putMetricDataRequest)
-
                 }
             }
         }

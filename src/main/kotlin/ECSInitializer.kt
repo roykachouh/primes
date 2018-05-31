@@ -47,7 +47,6 @@ class ECSInitializer : KoinComponent {
             CpuMemCombo("4 vCPU", "8GB")
     )
 
-
     init {
         setupEcs()
     }
@@ -56,8 +55,8 @@ class ECSInitializer : KoinComponent {
         val cluster = "benchmark"
         val services = ecs.listServices(ListServicesRequest().withCluster(cluster))
 
-        services.serviceArns.forEach {
-            val serviceName = it.substring(it.lastIndexOf("/") + 1)
+        services.serviceArns.forEach { serviceArn ->
+            val serviceName = serviceArn.substring(serviceArn.lastIndexOf("/") + 1)
             try {
                 ecs.updateService(UpdateServiceRequest().withService(serviceName).withDesiredCount(0))
 
@@ -65,7 +64,6 @@ class ECSInitializer : KoinComponent {
             } catch (e: Exception) {
                 println("Could not delete service with arn: $serviceName. Reason: ${e.message}")
             }
-
         }
 
         cpuConfigs.forEach { combo ->
@@ -87,7 +85,7 @@ class ECSInitializer : KoinComponent {
 
             val family =
                     "benchmark${combo.cpu.replace(" ", "").replace(".", "_")}_X_" +
-                            "${combo.memory.replace(" ", "").replace(".", "_")}"
+                            combo.memory.replace(" ", "").replace(".", "_")
 
             val registerTaskDefinitionRequest =
                     RegisterTaskDefinitionRequest()
