@@ -75,13 +75,15 @@ class ECSInitializer : KoinComponent {
                                     LogConfiguration()
                                             .withLogDriver(LogDriver.Awslogs)
                                             .withOptions(mapOf(
-                                                    "awslogs-region" to "us-east-1",
+                                                    "awslogs-region" to region,
                                                     "awslogs-group" to "ecs/benchmark",
                                                     "awslogs-stream-prefix" to "ecs"))
                             )
                             .withEnvironment(KeyValuePair().withName("cpu-spec").withValue(combo.cpu))
                             .withEnvironment(KeyValuePair().withName("AWS_ACCESS_KEY").withValue(System.getenv("AWS_ACCESS_KEY")))
                             .withEnvironment(KeyValuePair().withName("AWS_SECRET_KEY").withValue(System.getenv("AWS_SECRET_KEY")))
+                            .withEnvironment(KeyValuePair().withName("region").withValue(System.getenv("region")))
+                            .withEnvironment(KeyValuePair().withName("config").withValue(combo.toString()))
 
             val family =
                     "benchmark${combo.cpu.replace(" ", "").replace(".", "_")}_X_" +
@@ -111,7 +113,7 @@ class ECSInitializer : KoinComponent {
 
             val networkConfig = NetworkConfiguration()
                     .withAwsvpcConfiguration(AwsVpcConfiguration()
-                            .withSubnets("subnet-abcc5f84")
+                            .withSubnets("subnet-abcc5f84") //us:subnet-abcc5f84 eu;subnet-7142f339
                             .withAssignPublicIp(AssignPublicIp.ENABLED))
 
 

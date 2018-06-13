@@ -1,3 +1,4 @@
+
 import benchmarks.ConsumeCPU
 import com.amazonaws.services.cloudwatch.AmazonCloudWatch
 import com.amazonaws.services.cloudwatch.model.*
@@ -15,6 +16,7 @@ import org.openjdk.jmh.runner.options.OptionsBuilder
 import org.openjdk.jmh.runner.options.TimeValue
 import org.openjdk.jmh.util.ListStatistics
 import utils.MetricsUtil
+import java.lang.System.getenv
 import java.util.*
 import java.util.concurrent.TimeUnit
 
@@ -81,12 +83,16 @@ class CPUBenchmarker : KoinComponent {
 
                     val regionDimension = Dimension()
                     regionDimension.name = "region"
-                    regionDimension.value = "us-east-1" // TODO externalize
+                    regionDimension.value = getenv("region") ?: "us-east-1"
+
+                    val configDimension = Dimension()
+                    configDimension.name = "config"
+                    configDimension.value = getenv("config") ?: "N/A"
 
                     metric.metricName = it.primaryResult.getLabel()
                     metric.unit = StandardUnit.None.name
                     metric.timestamp = Date()
-                    metric.withDimensions(regionDimension)
+                    metric.withDimensions(regionDimension, configDimension)
 
                     val statSet = StatisticSet()
                     statSet.minimum = stats.min

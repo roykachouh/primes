@@ -11,7 +11,7 @@ class MetricsUtilTest extends Specification {
         then:
           actualResult == expectedResult
         where:
-          input | expectedResult
-          "model name      : Intel(R) Xeon(R) CPU E5-2670 v2 @ 2.50GHz"  | "IntelR XeonR CPU E52670 v2  250GHz"
+          input                                                         | expectedResult
+          "model name      : Intel(R) Xeon(R) CPU E5-2670 v2 @ 2.50GHz" | "IntelR XeonR CPU E52670 v2  250GHz"
     }
 }
