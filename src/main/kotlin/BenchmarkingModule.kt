@@ -4,7 +4,7 @@ import com.amazonaws.regions.Regions
 import com.amazonaws.services.cloudwatch.AmazonCloudWatchClient
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient
 import com.amazonaws.services.ecs.AmazonECSClient
-import metadata.CPUMetadataSnatcher
+import commands.CPUMetadataSnatcher
 import org.koin.dsl.module.applicationContext
 
 val region: String = System.getenv("region") ?: "us-east-1"

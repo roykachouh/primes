@@ -5,8 +5,8 @@ import com.amazonaws.services.cloudwatch.model.*
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB
 import com.amazonaws.services.dynamodbv2.model.AttributeValue
 import com.amazonaws.services.dynamodbv2.model.PutItemRequest
-import metadata.CPUMetadataSnatcher
-import metadata.CPUMetadataSnatcher.CpuMetadata
+import commands.CPUMetadataSnatcher
+import commands.CPUMetadataSnatcher.CpuMetadata
 import org.koin.standalone.KoinComponent
 import org.koin.standalone.StandAloneContext.startKoin
 import org.koin.standalone.inject

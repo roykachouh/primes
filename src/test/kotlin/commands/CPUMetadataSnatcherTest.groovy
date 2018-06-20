@@ -1,4 +1,4 @@
-package metadata
+package commands
 
 import spock.lang.IgnoreIf
 import spock.lang.Specification

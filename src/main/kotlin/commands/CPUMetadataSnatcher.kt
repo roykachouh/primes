@@ -1,4 +1,4 @@
-package metadata
+package commands
 
 import java.io.IOException
 import java.util.*
