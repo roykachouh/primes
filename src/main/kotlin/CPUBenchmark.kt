@@ -99,7 +99,6 @@ class CPUBenchmarker : KoinComponent {
         val cpuMetric = MetricDatum()
         val memMetric = MetricDatum()
 
-
         putMetricDataRequest.namespace = metricsNamespace + "_cores: " + cores
 
         val regionDimension = Dimension()
