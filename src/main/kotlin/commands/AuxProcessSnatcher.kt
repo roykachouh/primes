@@ -3,34 +3,19 @@ package commands
 import java.io.IOException
 import java.util.*
 
+const val COMMAND = "ps -eo pid,ppid,pcpu,pmem,comm"
 
+// TODO abstract and generalize snatchers
 class AuxProcessSnatcher {
-    data class AuxProcess(val pid: String?,
-                          val ppid: String?,
-                          val cpuPercent: String?,
-                          val memPercent: String?,
+    data class AuxProcess(val pid: String,
+                          val ppid: String,
+                          val cpuPercent: Double,
+                          val memPercent: Double,
                           val command: String?
     )
 
-    fun snatch(): List<AuxProcess>? {
-
-        val lines = "ps -eo pid,ppid,pcpu,pmem,comm".runCommand()!!.split("\n")
-
-        return lines
-                .filter {
-                    it.isNotEmpty()
-                }.map { line: String ->
-                    val cleansed = line.trim().replace("\\s+".toRegex(), ",")
-                    val fields = cleansed.split(",")
-                    println(line)
-                    AuxProcess(
-                            pid = fields[0],
-                            ppid = fields[1],
-                            cpuPercent = fields[2],
-                            memPercent = fields[3],
-                            command = fields[4]
-                    )
-                }
+    fun snatch(): String {
+        return COMMAND.runCommand()!!
     }
 
     private fun String.runCommand(): String? {
@@ -48,6 +33,7 @@ class AuxProcessSnatcher {
             return result.inputStream.bufferedReader().readText()
         } catch (e: IOException) {
             e.printStackTrace()
+            println("Failed to snatch: "+ e.message)
             return null
         }
     }

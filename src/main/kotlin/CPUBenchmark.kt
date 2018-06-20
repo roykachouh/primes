@@ -2,11 +2,10 @@
 import benchmarks.ConsumeCPU
 import com.amazonaws.services.cloudwatch.AmazonCloudWatch
 import com.amazonaws.services.cloudwatch.model.*
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDB
-import com.amazonaws.services.dynamodbv2.model.AttributeValue
-import com.amazonaws.services.dynamodbv2.model.PutItemRequest
+import commands.AuxProcessSnatcher
 import commands.CPUMetadataSnatcher
 import commands.CPUMetadataSnatcher.CpuMetadata
+import io.reactivex.Observable
 import org.koin.standalone.KoinComponent
 import org.koin.standalone.StandAloneContext.startKoin
 import org.koin.standalone.inject
@@ -35,11 +34,17 @@ class CPUBenchmarker : KoinComponent {
     }
 
     private val cpuMetadataSnatcher by inject<CPUMetadataSnatcher>()
-    private val dynamo by inject<AmazonDynamoDB>()
+    private val auxProcessSnatcher by inject<AuxProcessSnatcher>()
+
     private val cloudWatch by inject<AmazonCloudWatch>()
 
     init {
         val cpuMetadata = cpuMetadataSnatcher.snatch()
+
+        val metricsNamespace = MetricsUtil.sanitizeNamespace(cpuMetadata.modelName)
+        val cores = cpuMetadata.cores
+
+        kickoffTopWatchdog(metricsNamespace, cores)
 
         val opt = OptionsBuilder()
                 .include(".*" + ConsumeCPU::class.java.simpleName + ".*")
@@ -58,17 +63,76 @@ class CPUBenchmarker : KoinComponent {
         persist(benchmarkResult, cpuMetadata)
     }
 
+    private fun kickoffTopWatchdog(metricsNamespace: String?, cores: String?) {
+        println("Kicking off process watchdog...")
+        // every 1 second take a snapshot of the process tree with ps aux and report utilization to cloudwatch
+        Observable
+                .interval(1, TimeUnit.SECONDS) // TODO environmentalize
+                .timeInterval()
+                .flatMap {
+                    Observable.just(auxProcessSnatcher.snatch())
+                }.flatMap {
+                    Observable.just(it.split("\n"))
+                }.flatMapIterable {
+                    it
+                }.filter {
+                    it.isNotEmpty() && !it.contains("CPU")
+                }.flatMap {
+                    val cleansed = it.trim().replace("\\s+".toRegex(), ",")
+                    val fields = cleansed.split(",")
+                    Observable.just(AuxProcessSnatcher.AuxProcess(
+                            pid = fields[0],
+                            ppid = fields[1],
+                            cpuPercent = fields[2].toDouble(),
+                            memPercent = fields[3].toDouble(),
+                            command = fields[4]
+                    ))
+                }.doOnError {
+                    println("Error occurred in observable sequence for publishing process metrics " + it.message)
+                }.subscribe {
+                    persist(it, metricsNamespace, cores)
+                }
+    }
+
+    private fun persist(auxProcess: AuxProcessSnatcher.AuxProcess, metricsNamespace: String?, cores: String?) {
+        val putMetricDataRequest = PutMetricDataRequest()
+        val cpuMetric = MetricDatum()
+        val memMetric = MetricDatum()
+
+
+        putMetricDataRequest.namespace = metricsNamespace + "_cores: " + cores
+
+        val regionDimension = Dimension()
+        regionDimension.name = "region"
+        regionDimension.value = getenv("region") ?: "us-east-1"
+
+        val configDimension = Dimension()
+        configDimension.name = "config"
+        configDimension.value = getenv("config") ?: "N/A"
+
+        cpuMetric.metricName = auxProcess.command + "-" + "CPU"
+        cpuMetric.unit = StandardUnit.Percent.name
+        cpuMetric.timestamp = Date()
+        cpuMetric.withDimensions(regionDimension, configDimension)
+        cpuMetric.value = auxProcess.cpuPercent
+
+        memMetric.metricName = auxProcess.command + "-" + "MEM"
+        memMetric.unit = StandardUnit.Percent.name
+        memMetric.timestamp = Date()
+        memMetric.withDimensions(regionDimension, configDimension)
+        memMetric.value = auxProcess.memPercent
+
+        putMetricDataRequest.withMetricData(cpuMetric, memMetric)
+
+        cloudWatch.putMetricData(putMetricDataRequest)
+        println("Completing putting metric $putMetricDataRequest")
+    }
+
+
     private fun persist(benchmarkResult: MutableCollection<RunResult>, cpuMetadata: CpuMetadata) {
         benchmarkResult.forEach {
             it.benchmarkResults.forEach {
                 it.iterationResults.forEach {
-                    val putItemRequest = PutItemRequest()
-                            .withTableName("cpu_benchmarks")
-                            .addItemEntry("id", AttributeValue(UUID.randomUUID().toString()))
-                            .addItemEntry("vendor", AttributeValue(cpuMetadata.vendor ?: "N/A"))
-                            .addItemEntry("modelName", AttributeValue(cpuMetadata.modelName ?: "N/A"))
-                            .addItemEntry("cores", AttributeValue(cpuMetadata.cores ?: "N/A"))
-
                     val stats = it.primaryResult.getStatistics() as ListStatistics
 
                     val cores = cpuMetadata.cores
@@ -102,18 +166,6 @@ class CPUBenchmarker : KoinComponent {
                     metric.statisticValues = statSet
 
                     putMetricDataRequest.withMetricData(metric)
-
-                    putItemRequest.addItemEntry("label", AttributeValue(it.primaryResult.getLabel()))
-                            .addItemEntry("unit", AttributeValue(it.scoreUnit ?: "N/A"))
-                            .addItemEntry("min", AttributeValue(stats.min.toString()))
-                            .addItemEntry("max", AttributeValue(stats.max.toString()))
-                            .addItemEntry("n", AttributeValue(stats.n.toString()))
-                            .addItemEntry("variance", AttributeValue(stats.variance.toString()))
-                            .addItemEntry("stdDev", AttributeValue(stats.standardDeviation.toString()))
-                            .addItemEntry("p90", AttributeValue(stats.getPercentile(90.0).toString()))
-                            .addItemEntry("p95", AttributeValue(stats.getPercentile(95.0).toString()))
-                            .addItemEntry("p99", AttributeValue(stats.getPercentile(99.0).toString()))
-                    dynamo.putItem(putItemRequest)
 
                     cloudWatch.putMetricData(putMetricDataRequest)
                 }

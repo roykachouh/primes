@@ -1,9 +1,9 @@
-
 import com.amazonaws.auth.EnvironmentVariableCredentialsProvider
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.cloudwatch.AmazonCloudWatchClient
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient
 import com.amazonaws.services.ecs.AmazonECSClient
+import commands.AuxProcessSnatcher
 import commands.CPUMetadataSnatcher
 import org.koin.dsl.module.applicationContext
 
@@ -35,6 +35,8 @@ val mainModule = applicationContext {
     }
 
     bean { CPUMetadataSnatcher() }
+
+    bean { AuxProcessSnatcher() }
 
     bean { region }
 }
