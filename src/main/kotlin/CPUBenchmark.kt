@@ -1,11 +1,13 @@
-
 import benchmarks.ConsumeCPU
 import com.amazonaws.services.cloudwatch.AmazonCloudWatch
 import com.amazonaws.services.cloudwatch.model.*
 import commands.AuxProcessSnatcher
-import commands.CPUMetadataSnatcher
-import commands.CPUMetadataSnatcher.CpuMetadata
+import commands.CPUCoresSnatcher
+import commands.CPUModelNameSnatcher
+import commands.CPUVendorSnatcher
 import io.reactivex.Observable
+import models.AuxProcess
+import models.CpuMetadata
 import org.koin.standalone.KoinComponent
 import org.koin.standalone.StandAloneContext.startKoin
 import org.koin.standalone.inject
@@ -21,6 +23,11 @@ import java.util.concurrent.TimeUnit
 
 
 class CPUBenchmarker : KoinComponent {
+    val RUN_WATCHDOG: Boolean = true
+    val EXPORT_METRICS: Boolean = true
+    val FORKS = 1
+    val WARMUP_FORKS = 1
+
 
     companion object {
 
@@ -33,24 +40,33 @@ class CPUBenchmarker : KoinComponent {
         }
     }
 
-    private val cpuMetadataSnatcher by inject<CPUMetadataSnatcher>()
+    private val cpuVendorSnatcher by inject<CPUVendorSnatcher>()
+    private val cpuModelNameSnatcher by inject<CPUModelNameSnatcher>()
+    private val cpuCoresSnatcher by inject<CPUCoresSnatcher>()
     private val auxProcessSnatcher by inject<AuxProcessSnatcher>()
 
     private val cloudWatch by inject<AmazonCloudWatch>()
 
     init {
-        val cpuMetadata = cpuMetadataSnatcher.snatch()
+        val cpuMetadata = CpuMetadata(
+                vendor = cpuVendorSnatcher.snatch().replace("\n", ""),
+                cores = cpuCoresSnatcher.snatch().replace("\n", ""),
+                modelName = cpuModelNameSnatcher.snatch().replace("\n", "")
+        )
+
 
         val metricsNamespace = MetricsUtil.sanitizeNamespace(cpuMetadata.modelName)
         val cores = cpuMetadata.cores
 
-        kickoffTopWatchdog(metricsNamespace, cores)
+        if (RUN_WATCHDOG) {
+            kickoffTopWatchdog(metricsNamespace, cores)
+        }
 
         val opt = OptionsBuilder()
                 .include(".*" + ConsumeCPU::class.java.simpleName + ".*")
-                .forks(1)
+                .forks(FORKS)
                 .threads(Runtime.getRuntime().availableProcessors())
-                .warmupForks(1)
+                .warmupForks(WARMUP_FORKS)
                 .warmupTime(TimeValue(5, TimeUnit.SECONDS))
                 .warmupIterations(3)
                 .measurementIterations(5)
@@ -59,12 +75,17 @@ class CPUBenchmarker : KoinComponent {
 
         val benchmarkResult = Runner(opt).run()
 
+        println("Sending cpu metdata to cloudwatch: $cpuMetadata")
 
-        persist(benchmarkResult, cpuMetadata)
+        if (EXPORT_METRICS) {
+            persist(benchmarkResult, cpuMetadata)
+        }
+
     }
 
     private fun kickoffTopWatchdog(metricsNamespace: String?, cores: String?) {
         println("Kicking off process watchdog...")
+
         // every 1 second take a snapshot of the process tree with ps aux and report utilization to cloudwatch
         Observable
                 .interval(1, TimeUnit.SECONDS) // TODO environmentalize
@@ -80,7 +101,7 @@ class CPUBenchmarker : KoinComponent {
                 }.flatMap {
                     val cleansed = it.trim().replace("\\s+".toRegex(), ",")
                     val fields = cleansed.split(",")
-                    Observable.just(AuxProcessSnatcher.AuxProcess(
+                    Observable.just(AuxProcess(
                             pid = fields[0],
                             ppid = fields[1],
                             cpuPercent = fields[2].toDouble(),
@@ -90,11 +111,15 @@ class CPUBenchmarker : KoinComponent {
                 }.doOnError {
                     println("Error occurred in observable sequence for publishing process metrics " + it.message)
                 }.subscribe {
-                    persist(it, metricsNamespace, cores)
+                    println("Sending process metrics to cloudwatch: $it")
+
+                    if (EXPORT_METRICS) {
+                        persist(it, metricsNamespace, cores)
+                    }
                 }
     }
 
-    private fun persist(auxProcess: AuxProcessSnatcher.AuxProcess, metricsNamespace: String?, cores: String?) {
+    private fun persist(auxProcess: AuxProcess, metricsNamespace: String?, cores: String?) {
         val putMetricDataRequest = PutMetricDataRequest()
         val cpuMetric = MetricDatum()
         val memMetric = MetricDatum()

@@ -1,10 +1,13 @@
+
 import com.amazonaws.auth.EnvironmentVariableCredentialsProvider
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.cloudwatch.AmazonCloudWatchClient
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient
 import com.amazonaws.services.ecs.AmazonECSClient
 import commands.AuxProcessSnatcher
-import commands.CPUMetadataSnatcher
+import commands.CPUCoresSnatcher
+import commands.CPUModelNameSnatcher
+import commands.CPUVendorSnatcher
 import org.koin.dsl.module.applicationContext
 
 val region: String = System.getenv("region") ?: "us-east-1"
@@ -34,9 +37,10 @@ val mainModule = applicationContext {
                 .build()
     }
 
-    bean { CPUMetadataSnatcher() }
-
+    bean { CPUVendorSnatcher() }
+    bean { CPUModelNameSnatcher() }
+    bean { CPUVendorSnatcher() }
+    bean { CPUCoresSnatcher() }
     bean { AuxProcessSnatcher() }
-
     bean { region }
 }
