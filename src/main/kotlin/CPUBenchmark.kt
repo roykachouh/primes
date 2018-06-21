@@ -23,12 +23,6 @@ import java.util.concurrent.TimeUnit
 
 
 class CPUBenchmarker : KoinComponent {
-    val RUN_WATCHDOG: Boolean = true
-    val EXPORT_METRICS: Boolean = true
-    val FORKS = 1
-    val WARMUP_FORKS = 1
-
-
     companion object {
 
         @JvmStatic
@@ -39,6 +33,11 @@ class CPUBenchmarker : KoinComponent {
             CPUBenchmarker()
         }
     }
+
+    private val runWatchdog: Boolean = true
+    private val exportMetrics: Boolean = true
+    private val forks = 1
+    private val warmupForks = 1
 
     private val cpuVendorSnatcher by inject<CPUVendorSnatcher>()
     private val cpuModelNameSnatcher by inject<CPUModelNameSnatcher>()
@@ -55,18 +54,15 @@ class CPUBenchmarker : KoinComponent {
         )
 
 
-        val metricsNamespace = MetricsUtil.sanitizeNamespace(cpuMetadata.modelName)
-        val cores = cpuMetadata.cores
-
-        if (RUN_WATCHDOG) {
-            kickoffTopWatchdog(metricsNamespace, cores)
+        if (runWatchdog) {
+            kickoffTopWatchdog()
         }
 
         val opt = OptionsBuilder()
                 .include(".*" + ConsumeCPU::class.java.simpleName + ".*")
-                .forks(FORKS)
+                .forks(forks)
                 .threads(Runtime.getRuntime().availableProcessors())
-                .warmupForks(WARMUP_FORKS)
+                .warmupForks(warmupForks)
                 .warmupTime(TimeValue(5, TimeUnit.SECONDS))
                 .warmupIterations(3)
                 .measurementIterations(5)
@@ -77,13 +73,13 @@ class CPUBenchmarker : KoinComponent {
 
         println("Sending cpu metdata to cloudwatch: $cpuMetadata")
 
-        if (EXPORT_METRICS) {
+        if (exportMetrics) {
             persist(benchmarkResult, cpuMetadata)
         }
 
     }
 
-    private fun kickoffTopWatchdog(metricsNamespace: String?, cores: String?) {
+    private fun kickoffTopWatchdog() {
         println("Kicking off process watchdog...")
 
         // every 1 second take a snapshot of the process tree with ps aux and report utilization to cloudwatch
@@ -113,18 +109,18 @@ class CPUBenchmarker : KoinComponent {
                 }.subscribe {
                     println("Sending process metrics to cloudwatch: $it")
 
-                    if (EXPORT_METRICS) {
-                        persist(it, metricsNamespace, cores)
+                    if (exportMetrics) {
+                        persist(it)
                     }
                 }
     }
 
-    private fun persist(auxProcess: AuxProcess, metricsNamespace: String?, cores: String?) {
+    private fun persist(auxProcess: AuxProcess) {
         val putMetricDataRequest = PutMetricDataRequest()
         val cpuMetric = MetricDatum()
         val memMetric = MetricDatum()
 
-        putMetricDataRequest.namespace = metricsNamespace + "_cores: " + cores
+        putMetricDataRequest.namespace = "ProcessSniffer"
 
         val regionDimension = Dimension()
         regionDimension.name = "region"
@@ -134,13 +130,13 @@ class CPUBenchmarker : KoinComponent {
         configDimension.name = "config"
         configDimension.value = getenv("config") ?: "N/A"
 
-        cpuMetric.metricName = auxProcess.command + "-" + "CPU"
+        cpuMetric.metricName = auxProcess.command + "-process-" + "CPU"
         cpuMetric.unit = StandardUnit.Percent.name
         cpuMetric.timestamp = Date()
         cpuMetric.withDimensions(regionDimension, configDimension)
         cpuMetric.value = auxProcess.cpuPercent
 
-        memMetric.metricName = auxProcess.command + "-" + "MEM"
+        memMetric.metricName = auxProcess.command + "-process-" + "MEM"
         memMetric.unit = StandardUnit.Percent.name
         memMetric.timestamp = Date()
         memMetric.withDimensions(regionDimension, configDimension)
